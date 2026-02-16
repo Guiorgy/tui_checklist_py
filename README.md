@@ -27,6 +27,8 @@ The items can also be passed as a list of:
 - `Tuple[str, Any]`: Equivalent to `ChecklistItem(tuple[0], False, tuple[1])`
 - `str`: Equivalent to `ChecklistItem(str, False, None)`
 
+The function return a list of tags for the selected items (by default indeces), or `None` if the selection was cancelled using Ctrl+C or Escape.
+
 ## Demo
 
 ```python
