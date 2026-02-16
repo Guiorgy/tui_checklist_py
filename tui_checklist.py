@@ -327,13 +327,15 @@ class _ItemRange:
 def tui_checklist(
     items: List[Union[ChecklistItem, _CHECKLIST_ITEM_LIKE_TYPES]],
     header: Optional[str] = None,
-    item_margin: int = 0
+    item_margin: int = 0,
+    truncate_lines: bool = False
 ) -> Optional[List[str]]:
     """
     Renders a cross-platform TUI checkbox list.
     :param items: List of selection items.
     :param header: Optional description text to show above instructions.
     :param item_margin: Number of empty lines between items.
+    :param truncate_lines: Truncates lines that don't fit into the current viewport.
     """
 
     items = [_make_checklist_item(item) for item in items]
@@ -348,6 +350,14 @@ def tui_checklist(
         scroll_max: int = 0
 
         current_position: int = 0
+
+        def truncate(line: str, offset: int = 0) -> str:
+            """Truncates and adds ellipsis to a line if truncate_lines is True"""
+
+            if truncate_lines and offset + len(line) > terminal_width:
+                line = line[:(terminal_width - offset - 3)] + '...'
+
+            return line
 
         def render_error(message: str) -> None:
             """Renders a red error message at the top of the viewport"""
@@ -484,10 +494,10 @@ def tui_checklist(
                 _Term.write(CHECKED_CHECKBOX + CHECKBOX_SEPARATOR, color=_Term.Color.GREEN)
             else:
                 _Term.write(UNCHECKED_CHECKBOX + CHECKBOX_SEPARATOR)
-            _Term.write_line(item.label_lines[0])
+            _Term.write_line(truncate(item.label_lines[0], len(OTHER_LINES_INDENTATION)))
 
             for line in item.label_lines[1:(len(item) if max_lines is None else max_lines - 1)]:
-                _Term.overwrite_line(f'{OTHER_LINES_INDENTATION}{line}')
+                _Term.overwrite_line(truncate(f'{OTHER_LINES_INDENTATION}{line}'))
 
         def render_item_margin() -> None:
             """Renders the margin between list items"""
@@ -502,7 +512,7 @@ def tui_checklist(
             # Redraw the header and recalculate the viewport if terminal dimensions change (or it's the first time)
             _terminal_width, _terminal_height = os.get_terminal_size()
             if terminal_width != _terminal_width or terminal_height != _terminal_height:
-                if _terminal_width < max(max(len(line) for line in header_lines), max(len(item) for item in items)):
+                if not truncate_lines and _terminal_width < max(max(len(line) for line in header_lines), max(len(item) for item in items)):
                     render_viewport_too_small_error()
                     continue
 
@@ -511,7 +521,7 @@ def tui_checklist(
                 # Render the header
                 _Term.move_home()
                 for line in header_lines:
-                    _Term.overwrite_line(line, bold=True, color=_Term.Color.CYAN)
+                    _Term.overwrite_line(truncate(line), bold=True, color=_Term.Color.CYAN)
                 _Term.overwrite_line()
 
                 # Reserve 3 lines for header/footer margins and status bar in the footer
@@ -555,7 +565,7 @@ def tui_checklist(
 
             # Draw the footer
             _Term.move_to(terminal_height - 1)
-            _Term.overwrite_line(f'>{current_position + 1} {visible_range.first + 1}-{visible_range.last + 1}/{len(items)}', newline=False, bold=True, color=_Term.Color.CYAN)
+            _Term.overwrite_line(truncate(f'>{current_position + 1} {visible_range.first + 1}-{visible_range.last + 1}/{len(items)}'), newline=False, bold=True, color=_Term.Color.CYAN)
 
             _Term.flush()
 

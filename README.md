@@ -5,7 +5,9 @@ A simple crossplatform scrollable TUI checklist selection in pure Python.
 > [!WARNING]
 > This is a simple-ish implementation of a checklist TUI.
 > It assumes the terminal supports ANSI escape sequences.
-> It does not attempt to render items that are too large in either dimension, only rendering an error requesting for a larger terminal window. Ensure that the checklist items are small enough to fit the terminal yourself.
+> It does not attempt to render items that are too large in either dimension, only rendering an error requesting for a larger terminal window.
+> At most, you may enable the `truncate_lines` option to truncate lines that don't fit horizontally.
+> It's best to ensure that the checklist items are small enough to fit the terminal yourself.
 
 ## Usage
 
@@ -14,6 +16,7 @@ The `tui_checklist` accepts 3 arguments:
 - `items`: The items to render
 - `header`: The header text to render at the top if the checklist
 - `item_margin`: The number of empty lines to render between each item
+- `truncate_lines`: Truncates lines that don't fit into the terminal
 
 The items in the checklist are defined as a list of `ChecklistItem(label: str, checked: bool, tag: Any)`, where `label` is the text to render next to the checkbox, `checked` is whether the item should be initially checked, and `tag` is anything user defined that will be returned when selection is made. If `tag` is not defined, it default to the item index in the list.
 
@@ -36,7 +39,8 @@ def main() -> None:
     results = tui_checklist(
         header="Please select some of the following options",
         items=[(f"Option {i}\nSub-description {i}", i % 10 == 0) for i in range(1, 100)],
-        item_margin=1
+        item_margin=1,
+        truncate_lines=False
     )
     if results is not None:
         print(f"Selection saved: {len(results)} items:")
