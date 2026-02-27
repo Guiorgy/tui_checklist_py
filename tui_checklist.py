@@ -9,7 +9,7 @@ import sys
 import os
 from enum import StrEnum
 from dataclasses import dataclass, field
-from typing import Self, Tuple, List, Dict, Optional, Union, Final, Type, Any
+from typing import Self, Iterable, Tuple, List, Dict, Optional, Union, Final, Type, TypeAlias, Any
 
 
 if sys.platform == 'win32':
@@ -24,7 +24,7 @@ if sys.platform == 'win32':
         ASCII_ESC: Final[bytes] = b'\x1b'
 
         WIN_CTRL_C: Final[bytes] = ASCII_ETX
-        WIN_ESC_PREFIXES: Final[Tuple[bytes]] = (b'\x00', b'\xe0')
+        WIN_ESC_PREFIXES: Final[Tuple[bytes, ...]] = (b'\x00', b'\xe0')
         WIN_ESCAPED_MAPPING: Final[Dict[bytes, str]] = {
             b'H': 'UP',
             b'P': 'DOWN',
@@ -40,7 +40,7 @@ if sys.platform == 'win32':
         }
 
         @classmethod
-        def get_key(cls: Type) -> Key:
+        def get_key(cls: Type[Self]) -> Key:
             key_code: bytes = msvcrt.getch()
 
             if key_code == cls.WIN_CTRL_C:
@@ -139,7 +139,7 @@ else:
         }
 
         @classmethod
-        def get_key(cls: Type) -> Key:
+        def get_key(cls: Type[Self]) -> Key:
             fd = sys.stdin.fileno()
             old = termios.tcgetattr(fd)
 
@@ -201,21 +201,21 @@ class _Term:
         WHITE: Final = '\033[37m'
 
     @classmethod
-    def enter_app_mode(cls: Type) -> None:
+    def enter_app_mode(cls: Type[Self]) -> None:
         """Sets up the terminal for a TUI (Alt screen, hidden cursor)"""
 
         sys.stdout.write(cls.ALT_SCREEN_ON + cls.HIDE_CURSOR + cls.HOME_CURSOR)
         cls.flush()
 
     @classmethod
-    def exit_app_mode(cls: Type) -> None:
+    def exit_app_mode(cls: Type[Self]) -> None:
         """Restores the terminal to its original state"""
 
         sys.stdout.write(cls.SHOW_CURSOR + cls.ALT_SCREEN_OFF)
         cls.flush()
 
     @classmethod
-    def move_home(cls: Type) -> None:
+    def move_home(cls: Type[Self]) -> None:
         """Moves the cursor to the home position"""
 
         sys.stdout.write(cls.HOME_CURSOR)
@@ -228,7 +228,7 @@ class _Term:
         sys.stdout.write(f'\033[{row + 1};{column + 1}H')
 
     @classmethod
-    def write(cls: Type, text: str, bold: bool = False, color: Color = Color.DEFAULT) -> None:
+    def write(cls: Type[Self], text: str, bold: bool = False, color: Color = Color.DEFAULT) -> None:
         """Write to stdout"""
 
         if not bold and color == cls.Color.DEFAULT:
@@ -237,13 +237,13 @@ class _Term:
             sys.stdout.write(f'{(cls.BOLD if bold else '')}{color}{text}{cls.RESET}')
 
     @classmethod
-    def write_line(cls: Type, text: str, bold: bool = False, color: Color = Color.DEFAULT) -> None:
+    def write_line(cls: Type[Self], text: str, bold: bool = False, color: Color = Color.DEFAULT) -> None:
         """A shorthand for write(f'{text}\n')"""
 
         cls.write(f'{text}\n', bold, color)
 
     @classmethod
-    def overwrite_line(cls: Type, text: str = '', newline: bool = True, bold: bool = False, color: Color = Color.DEFAULT) -> None:
+    def overwrite_line(cls: Type[Self], text: str = '', newline: bool = True, bold: bool = False, color: Color = Color.DEFAULT) -> None:
         """Writes text followed by a newline, clearing the line first to prevent ghosting"""
 
         sys.stdout.write(cls.CLEAR_LINE)
@@ -252,7 +252,7 @@ class _Term:
             sys.stdout.write('\n')
 
     @classmethod
-    def clear_lines_after(cls: Type, row: Optional[int] = None) -> None:
+    def clear_lines_after(cls: Type[Self], row: Optional[int] = None) -> None:
         """Clears all lines below the current position, or from the given position"""
 
         if row is not None:
@@ -273,7 +273,7 @@ class ChecklistItem:
     checked: bool = False
     tag: Any = None
 
-    label_lines: int = field(init=False)
+    label_lines: List[str] = field(init=False)
 
     @property
     def height(self) -> int:
@@ -292,13 +292,13 @@ class ChecklistItem:
         return len(self.label_lines)
 
 
-_CHECKLIST_ITEM_LIKE_TYPES: Final[Type] = Union[Tuple[str, bool, Any], Tuple[str, bool], Tuple[str, Any], str]
+_CHECKLIST_ITEM_LIKE_TYPES: Final[TypeAlias] = Union[Tuple[str, bool, Any], Tuple[str, bool], Tuple[str, Any], str]
 def _make_checklist_item(obj: Union[ChecklistItem, _CHECKLIST_ITEM_LIKE_TYPES]) -> ChecklistItem:
     """Tries to convert an object to a ChecklistItem"""
 
     if isinstance(obj, ChecklistItem):
         return obj
-    elif isinstance(obj, Tuple):
+    elif isinstance(obj, tuple):
         if len(obj) >= 2 and isinstance(obj[0], str):
             if len(obj) == 3:
                 if isinstance(obj[1], bool):
@@ -325,11 +325,11 @@ class _ItemRange:
 
 
 def tui_checklist(
-    items: List[Union[ChecklistItem, _CHECKLIST_ITEM_LIKE_TYPES]],
+    items: Iterable[Union[ChecklistItem, _CHECKLIST_ITEM_LIKE_TYPES]],
     header: Optional[str] = None,
     item_margin: int = 0,
     truncate_lines: bool = False
-) -> Optional[List[str]]:
+) -> Optional[List[Any]]:
     """
     Renders a cross-platform TUI checkbox list.
     :param items: List of selection items.
@@ -415,6 +415,9 @@ def tui_checklist(
 
             nonlocal visible_range
 
+            if visible_range is None:
+                return
+
             if visible_range.first == 0:
                 scroll_to(scroll_max)
             else:
@@ -440,6 +443,9 @@ def tui_checklist(
             """Scrolls up by 1 item (with wrap around)"""
 
             nonlocal visible_range
+
+            if visible_range is None:
+                return
 
             if visible_range.first == scroll_max:
                 scroll_to(0)
@@ -506,7 +512,7 @@ def tui_checklist(
                 _Term.overwrite_line()
 
         instructions: Final = '(Arrows: Move, Space: Toggle, PgUp/Dn: Scroll, Home/End: Jump, Enter: Save, Esc/Ctrl+C: Cancel)'
-        header_lines: Final[List[str]] = header.split('\n') + [instructions]
+        header_lines: Final[List[str]] = (header.split('\n') if header else []) + [instructions]
 
         while True:
             # Redraw the header and recalculate the viewport if terminal dimensions change (or it's the first time)
